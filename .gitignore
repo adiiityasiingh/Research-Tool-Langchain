@@ -83,3 +83,4 @@ tmp/
 
 # Ollama models (if using local models)
 .ollama/
+.env
