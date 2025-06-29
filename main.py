@@ -10,7 +10,7 @@ from langchain_community.llms import HuggingFacePipeline
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQAWithSourcesChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import UnstructuredURLLoader
+from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.vectorstores import Chroma
 from transformers.pipelines import pipeline
 
@@ -194,7 +194,7 @@ if process_url_clicked:
         else:
             try:
                 # load data
-                loader = UnstructuredURLLoader(urls=valid_urls)
+                loader = WebBaseLoader(valid_urls)
                 main_placeholder.text("Data Loading...Started...✅✅✅")
                 data = loader.load()
                 

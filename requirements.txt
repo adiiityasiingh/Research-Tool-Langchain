@@ -11,23 +11,22 @@ streamlit>=1.28.0
 # Environment and utilities
 python-dotenv==1.0.0
 
-# Document processing
-unstructured==0.9.2
-tiktoken>=0.7,<1
+# Document processing - Simplified for better compatibility
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+lxml>=4.9.0
 
-# Vector database - Try ChromaDB as alternative to FAISS (Windows friendly)
+# Vector database - ChromaDB (Windows friendly)
 chromadb>=0.4.0
-
-# File type detection
-libmagic==1.0
-python-magic==0.4.27
-python-magic-bin==0.4.14
 
 # LLM providers
 openai==1.93.0
 anthropic==0.55.0
 
-# Local models and embeddings (optional - will be installed separately if needed)
+# Text processing
+tiktoken>=0.7,<1
+
+# Optional: Local models and embeddings (uncomment if needed)
 # sentence-transformers==4.1.0
 # torch==2.7.1
 # transformers==4.53.0
