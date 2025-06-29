@@ -163,11 +163,21 @@ main_placeholder = st.empty()
 # Handle clear data button
 if clear_data_clicked:
     if os.path.exists("./chroma_db"):
-        import shutil
-        shutil.rmtree("./chroma_db")
-        vectorstore = None
-        st.sidebar.success("Knowledge base cleared!")
-        st.rerun()
+        try:
+            # Set vectorstore to None to release the connection
+            vectorstore = None
+            
+            # Wait a moment for connections to close
+            time.sleep(1)
+            
+            import shutil
+            shutil.rmtree("./chroma_db")
+            st.sidebar.success("Knowledge base cleared!")
+            st.rerun()
+        except PermissionError:
+            st.sidebar.error("Could not clear knowledge base - files are in use. Please restart the app and try again.")
+        except Exception as e:
+            st.sidebar.error(f"Error clearing knowledge base: {str(e)}")
 
 if process_url_clicked:
     # Check if we have working LLM and embeddings
