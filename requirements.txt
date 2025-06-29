@@ -26,7 +26,12 @@ anthropic==0.55.0
 # Text processing
 tiktoken>=0.7,<1
 
+# Embeddings - Required for HuggingFace embeddings
+sentence-transformers>=2.2.0
+
+# Fix protobuf compatibility issue
+protobuf==3.20.3
+
 # Optional: Local models and embeddings (uncomment if needed)
-# sentence-transformers==4.1.0
 # torch==2.7.1
 # transformers==4.53.0

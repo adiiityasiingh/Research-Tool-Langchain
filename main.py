@@ -112,21 +112,26 @@ if embedding_provider == "Hugging Face (Free)":
             model_name="sentence-transformers/all-MiniLM-L6-v2",
             model_kwargs={'device': 'cpu'}
         )
+        st.sidebar.success("✅ HuggingFace embeddings loaded successfully")
     except Exception as e:
         st.sidebar.error(f"Hugging Face Embeddings Error: {str(e)}")
-        st.sidebar.info("This will use OpenAI embeddings as fallback")
+        st.sidebar.info("Trying OpenAI embeddings as fallback...")
         try:
             from langchain_openai import OpenAIEmbeddings
             embeddings = OpenAIEmbeddings()
-        except:
-            st.sidebar.error("No working embeddings provider found")
+            st.sidebar.success("✅ OpenAI embeddings loaded as fallback")
+        except Exception as fallback_error:
+            st.sidebar.error(f"Fallback failed: {str(fallback_error)}")
+            st.sidebar.error("No working embeddings provider found. Please check your API keys.")
             
 elif embedding_provider == "OpenAI":
     try:
         from langchain_openai import OpenAIEmbeddings
         embeddings = OpenAIEmbeddings()
+        st.sidebar.success("✅ OpenAI embeddings loaded successfully")
     except Exception as e:
         st.sidebar.error(f"OpenAI Embeddings Error: {str(e)}")
+        st.sidebar.info("Please check your OPENAI_API_KEY in .env file")
 
 # Initialize vectorstore - try to load existing or create new
 vectorstore = None
