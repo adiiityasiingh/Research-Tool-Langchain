@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import pickle
 import time
+import sqlite3
 from langchain_openai import OpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -23,6 +24,17 @@ except ImportError:
 from dotenv import load_dotenv
 load_dotenv() 
  # take environment variables from .env
+
+# Check SQLite version
+def check_sqlite_version():
+    try:
+        version = sqlite3.sqlite_version
+        version_tuple = tuple(map(int, version.split('.')))
+        return version_tuple >= (3, 35, 0)
+    except:
+        return False
+
+SQLITE_COMPATIBLE = check_sqlite_version()
 
 st.title("RockyBot: News Research Tool 📈")
 st.sidebar.title("Configuration")
@@ -136,25 +148,31 @@ elif embedding_provider == "OpenAI":
 # Initialize vectorstore - try to load existing or create new
 vectorstore = None
 if embeddings is not None:
-    try:
-        # Try to load existing ChromaDB
-        if os.path.exists("./chroma_db"):
-            vectorstore = Chroma(
-                persist_directory="./chroma_db",
-                embedding_function=embeddings
-            )
-            # Check if the vectorstore has any documents
-            collection = vectorstore._collection
-            if collection.count() > 0:
-                st.sidebar.success(f"✅ Loaded existing knowledge base with {collection.count()} documents")
+    if not SQLITE_COMPATIBLE:
+        st.sidebar.warning("⚠️ SQLite version too old for ChromaDB")
+        st.sidebar.info("Your deployment environment has SQLite < 3.35.0")
+        st.sidebar.info("ChromaDB requires SQLite ≥ 3.35.0")
+        st.sidebar.info("Consider using a different deployment platform or contact support.")
+    else:
+        try:
+            # Try to load existing ChromaDB
+            if os.path.exists("./chroma_db"):
+                vectorstore = Chroma(
+                    persist_directory="./chroma_db",
+                    embedding_function=embeddings
+                )
+                # Check if the vectorstore has any documents
+                collection = vectorstore._collection
+                if collection.count() > 0:
+                    st.sidebar.success(f"✅ Loaded existing knowledge base with {collection.count()} documents")
+                else:
+                    st.sidebar.warning("⚠️ Knowledge base exists but is empty")
+                    vectorstore = None
             else:
-                st.sidebar.warning("⚠️ Knowledge base exists but is empty")
-                vectorstore = None
-        else:
-            st.sidebar.info("No existing knowledge base found. Process URLs to create one.")
-    except Exception as e:
-        st.sidebar.warning(f"Could not load existing knowledge base: {str(e)}")
-        vectorstore = None
+                st.sidebar.info("No existing knowledge base found. Process URLs to create one.")
+        except Exception as e:
+            st.sidebar.warning(f"Could not load existing knowledge base: {str(e)}")
+            vectorstore = None
 
 st.sidebar.title("News Article URLs")
 
@@ -193,6 +211,14 @@ if process_url_clicked:
         st.error("Please configure a working LLM provider first.")
     elif embeddings is None:
         st.error("Please configure a working embeddings provider first.")
+    elif not SQLITE_COMPATIBLE:
+        st.error("❌ Cannot process URLs - SQLite version incompatible")
+        st.error("Your deployment environment has SQLite < 3.35.0")
+        st.error("ChromaDB requires SQLite ≥ 3.35.0")
+        st.info("Solutions:")
+        st.info("1. Deploy to a platform with newer SQLite (Railway, Render, etc.)")
+        st.info("2. Use a different vector store (requires code changes)")
+        st.info("3. Contact your deployment platform support")
     else:
         # Filter out empty URLs
         valid_urls = [url for url in urls if url.strip()]
