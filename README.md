@@ -2,7 +2,7 @@
 
 This is a powerful, user-friendly news research tool designed for effortless information retrieval and analysis. Users can input article URLs and ask questions to receive relevant insights from news articles and web content.
 
-![](rockybot.jpg)
+![](rockybot.png)
 
 ## ✨ Features
 
