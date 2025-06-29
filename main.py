@@ -12,7 +12,13 @@ from langchain.chains import RetrievalQAWithSourcesChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.vectorstores import Chroma
-from transformers.pipelines import pipeline
+
+# Optional import for local models
+try:
+    from transformers.pipelines import pipeline
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
 
 from dotenv import load_dotenv
 load_dotenv() 
@@ -68,31 +74,28 @@ elif llm_provider == "Ollama (Local)":
         st.sidebar.info("Please install Ollama and run: ollama pull llama2")
 
 elif llm_provider == "Local HuggingFace":
-    try:
-        # Check if required packages are available
-        import transformers
-        import torch
-        from transformers.pipelines import pipeline
-        
-        with st.spinner("Loading local model..."):
-            # Use a small, fast model
-            pipe = pipeline(
-                "text-generation",
-                model="microsoft/DialoGPT-small",
-                max_new_tokens=200,
-                temperature=0.9,
-                do_sample=True,
-                pad_token_id=50256
-            )
-            llm = HuggingFacePipeline(pipeline=pipe)
-        st.sidebar.success("Local model loaded successfully!")
-    except ImportError:
+    if TRANSFORMERS_AVAILABLE:
+        try:
+            from transformers.pipelines import pipeline
+            with st.spinner("Loading local model..."):
+                # Use a small, fast model
+                pipe = pipeline(
+                    "text-generation",
+                    model="microsoft/DialoGPT-small",
+                    max_new_tokens=200,
+                    temperature=0.9,
+                    do_sample=True,
+                    pad_token_id=50256
+                )
+                llm = HuggingFacePipeline(pipeline=pipe)
+            st.sidebar.success("Local model loaded successfully!")
+        except Exception as e:
+            st.sidebar.error(f"Local Model Error: {str(e)}")
+            st.sidebar.info("This requires downloading a small model (~500MB)")
+    else:
         st.sidebar.error("Local models not available")
         st.sidebar.info("To use local models, install: pip install torch transformers sentence-transformers")
         st.sidebar.info("Or select a different LLM provider")
-    except Exception as e:
-        st.sidebar.error(f"Local Model Error: {str(e)}")
-        st.sidebar.info("This requires downloading a small model (~500MB)")
 
 # Embeddings Selection
 embedding_provider = st.sidebar.selectbox(
