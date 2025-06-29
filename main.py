@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv() 
  # take environment variables from .env
 
-st.title("RockyBot: News Research Tool 📈")
+st.title("Market News Research Tool 📈")
 st.sidebar.title("Configuration")
 
 # LLM Provider Selection
