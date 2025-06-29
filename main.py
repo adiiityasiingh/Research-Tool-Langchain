@@ -7,11 +7,11 @@ from langchain_anthropic import ChatAnthropic
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.llms import Ollama
 from langchain_community.llms import HuggingFacePipeline
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQAWithSourcesChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import UnstructuredURLLoader
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import Chroma
 from transformers.pipelines import pipeline
 
 from dotenv import load_dotenv
@@ -69,6 +69,11 @@ elif llm_provider == "Ollama (Local)":
 
 elif llm_provider == "Local HuggingFace":
     try:
+        # Check if required packages are available
+        import transformers
+        import torch
+        from transformers.pipelines import pipeline
+        
         with st.spinner("Loading local model..."):
             # Use a small, fast model
             pipe = pipeline(
@@ -81,6 +86,10 @@ elif llm_provider == "Local HuggingFace":
             )
             llm = HuggingFacePipeline(pipeline=pipe)
         st.sidebar.success("Local model loaded successfully!")
+    except ImportError:
+        st.sidebar.error("Local models not available")
+        st.sidebar.info("To use local models, install: pip install torch transformers sentence-transformers")
+        st.sidebar.info("Or select a different LLM provider")
     except Exception as e:
         st.sidebar.error(f"Local Model Error: {str(e)}")
         st.sidebar.info("This requires downloading a small model (~500MB)")
@@ -116,6 +125,29 @@ elif embedding_provider == "OpenAI":
     except Exception as e:
         st.sidebar.error(f"OpenAI Embeddings Error: {str(e)}")
 
+# Initialize vectorstore - try to load existing or create new
+vectorstore = None
+if embeddings is not None:
+    try:
+        # Try to load existing ChromaDB
+        if os.path.exists("./chroma_db"):
+            vectorstore = Chroma(
+                persist_directory="./chroma_db",
+                embedding_function=embeddings
+            )
+            # Check if the vectorstore has any documents
+            collection = vectorstore._collection
+            if collection.count() > 0:
+                st.sidebar.success(f"✅ Loaded existing knowledge base with {collection.count()} documents")
+            else:
+                st.sidebar.warning("⚠️ Knowledge base exists but is empty")
+                vectorstore = None
+        else:
+            st.sidebar.info("No existing knowledge base found. Process URLs to create one.")
+    except Exception as e:
+        st.sidebar.warning(f"Could not load existing knowledge base: {str(e)}")
+        vectorstore = None
+
 st.sidebar.title("News Article URLs")
 
 urls = []
@@ -124,9 +156,18 @@ for i in range(3):
     urls.append(url)
 
 process_url_clicked = st.sidebar.button("Process URLs")
-file_path = "faiss_store.pkl"
+clear_data_clicked = st.sidebar.button("🗑️ Clear Knowledge Base")
 
 main_placeholder = st.empty()
+
+# Handle clear data button
+if clear_data_clicked:
+    if os.path.exists("./chroma_db"):
+        import shutil
+        shutil.rmtree("./chroma_db")
+        vectorstore = None
+        st.sidebar.success("Knowledge base cleared!")
+        st.rerun()
 
 if process_url_clicked:
     # Check if we have working LLM and embeddings
@@ -161,19 +202,25 @@ if process_url_clicked:
                     if not docs:
                         st.error("No text chunks could be created from the loaded content.")
                     else:
-                        # create embeddings and save it to FAISS index
+                        # create embeddings and save it to ChromaDB
                         main_placeholder.text("Embedding Vector Started Building...✅✅✅")
                         
-                        # Create FAISS index with error handling
+                        # Create ChromaDB index with error handling
                         try:
-                            vectorstore = FAISS.from_documents(docs, embeddings)
+                            vectorstore = Chroma.from_documents(
+                                documents=docs, 
+                                embedding=embeddings,
+                                persist_directory="./chroma_db"
+                            )
+                            # Persist the database
+                            vectorstore.persist()
                             time.sleep(2)
-
-                            # Save the FAISS index to a pickle file
-                            with open(file_path, "wb") as f:
-                                pickle.dump(vectorstore, f)
                             
-                            st.success("URLs processed successfully! You can now ask questions.")
+                            # Verify documents were added
+                            collection = vectorstore._collection
+                            doc_count = collection.count()
+                            st.success(f"URLs processed successfully! Added {doc_count} document chunks to knowledge base.")
+                            st.info(f"You can now ask questions about the {len(valid_urls)} article(s) you processed.")
                         except Exception as e:
                             st.error(f"Error creating embeddings: {str(e)}")
                             st.info("This might be due to empty documents or API issues. Please check your URLs and try again.")
@@ -188,28 +235,54 @@ search_button = st.button("🔍 Search for Answer")
 if search_button and query:
     if llm is None:
         st.error("Please configure a working LLM provider first.")
-    elif os.path.exists(file_path):
+    elif vectorstore is not None:
         try:
             with st.spinner("🔍 Searching through documents..."):
-                with open(file_path, "rb") as f:
-                    vectorstore = pickle.load(f)
-                    chain = RetrievalQAWithSourcesChain.from_llm(llm=llm, retriever=vectorstore.as_retriever())
-                    
-            with st.spinner("🤖 Generating answer..."):
-                result = chain({"question": query}, return_only_outputs=True)
+                # Configure retriever with better parameters
+                retriever = vectorstore.as_retriever(
+                    search_type="similarity",
+                    search_kwargs={"k": 4}  # Retrieve top 4 most relevant chunks
+                )
                 
-            # result will be a dictionary of this format --> {"answer": "", "sources": [] }
-            st.header("Answer")
-            st.write(result["answer"])
+                # Test retrieval first
+                docs = retriever.get_relevant_documents(query)
+                if not docs:
+                    st.warning("No relevant documents found for your question. Try rephrasing or processing more URLs.")
+                else:
+                    st.info(f"Found {len(docs)} relevant document chunks")
+                    
+                    # Create the chain
+                    chain = RetrievalQAWithSourcesChain.from_llm(
+                        llm=llm, 
+                        retriever=retriever,
+                        return_source_documents=True
+                    )
+                    
+                    # Generate answer
+                    with st.spinner("🤖 Generating answer..."):
+                        result = chain({"question": query})
+                    
+                    # Display the answer
+                    st.header("Answer")
+                    st.write(result["answer"])
 
-            # Display sources, if available
-            sources = result.get("sources", "")
-            if sources:
-                st.subheader("Sources:")
-                sources_list = sources.split("\n")  # Split the sources by newline
-                for source in sources_list:
-                    st.write(source)
+                    # Display sources, if available
+                    sources = result.get("sources", "")
+                    if sources:
+                        st.subheader("Sources:")
+                        sources_list = sources.split("\n")  # Split the sources by newline
+                        for source in sources_list:
+                            st.write(source)
+                            
+                    # Show retrieved documents for debugging
+                    with st.expander("🔍 Retrieved Document Chunks"):
+                        for i, doc in enumerate(docs):
+                            st.write(f"**Chunk {i+1}:**")
+                            st.write(doc.page_content[:300] + "..." if len(doc.page_content) > 300 else doc.page_content)
+                            st.write("---")
+                    
         except Exception as e:
             st.error(f"Error processing query: {str(e)}")
+            st.info("Try processing your URLs again or check your LLM configuration.")
     else:
         st.warning("Please process some URLs first before asking questions.")
