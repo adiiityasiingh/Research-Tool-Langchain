@@ -323,8 +323,7 @@ if search_button and query:
                         for i, doc in enumerate(docs):
                             st.write(f"**Chunk {i+1}:**")
                             st.write(doc.page_content[:300] + "..." if len(doc.page_content) > 300 else doc.page_content)
-                            st.write("---")
-                    
+                            st.write("---")     
         except Exception as e:
             st.error(f"Error processing query: {str(e)}")
             st.info("Try processing your URLs again or check your LLM configuration.")
