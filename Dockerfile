@@ -8,11 +8,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
-    libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
-COPY requirements-railway.txt requirements.txt
+COPY requirements-simple.txt requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -28,4 +27,4 @@ ENV PYTHONPATH=/app
 ENV PORT=8080
 
 # Run the application
-CMD ["streamlit", "run", "main.py", "--server.port", "8080", "--server.address", "0.0.0.0"] 
+CMD ["streamlit", "run", "main-simple.py", "--server.port", "8080", "--server.address", "0.0.0.0"] 
